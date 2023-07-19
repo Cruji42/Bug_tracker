@@ -17,8 +17,6 @@ def getUser():
 
 @user.get("/{idUser}", response_model=None, tags=["user"])
 def getSingleUser(idUser: str):
-    import pdb
-    pdb.set_trace()
     with engine.connect() as conn:
             result = conn.execute(users.select().where(users.c.id == idUser)).first()
             
@@ -50,7 +48,7 @@ def addUser(data_user: UserSchema):
                 
             return JSONResponse(status_code=_status, content=result)
         
-@user.put("/user/{idUser}", status_code=200, tags=['user'])
+@user.put("/{idUser}", status_code=200, tags=['user'])
 def update_user(data_user: UserSchema, idUser: str):
     with engine.connect() as conn:
         try:
@@ -73,7 +71,7 @@ def update_user(data_user: UserSchema, idUser: str):
             _status = status.HTTP_400_BAD_REQUEST
             return JSONResponse(status_code=_status, content=result)
         
-@user.delete("/user/{idUser}", status_code=200, tags=["user"])
+@user.delete("/{idUser}", status_code=200, tags=["user"])
 def deleteUser(idUser: str):
     with engine.connect() as conn:
         try:
