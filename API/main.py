@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from router.user import user
 import uvicorn
-#from router.ticket import ticket
+from router.ticket import ticket
 
 app = FastAPI(
     title="Bug Tracker",
@@ -11,7 +11,7 @@ app = FastAPI(
     redoc_url=None'''
 )
 
-#app.include_router(ticket)
+app.include_router(ticket)
 app.include_router(user)
 
 if __name__ == "__main__":
