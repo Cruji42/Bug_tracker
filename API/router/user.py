@@ -1,9 +1,10 @@
 from fastapi import APIRouter, status, Request
 from fastapi.responses import JSONResponse
 from starlette.status import HTTP_201_CREATED, HTTP_204_NO_CONTENT, HTTP_401_UNAUTHORIZED
-from schema.user_schema import UserSchema
+from schema.user_schema import UserSchema, LoginSchema
 from config.db import engine
 from typing import List
+import bcrypt
 from model.persistence import users
 from sqlalchemy.exc import IntegrityError
 
@@ -33,6 +34,12 @@ def getSingleUser(idUser: str):
 def addUser(data_user: UserSchema):
     with engine.connect() as conn: 
         try:
+            #Encrypt password using bcrypt
+            passwd = data_user.password.encode()
+            salt = bcrypt.gensalt()
+            hashed = bcrypt.hashpw(passwd, salt)
+            data_user.password = hashed
+
             new_user = data_user.dict()
             
             #METADATA
@@ -47,6 +54,29 @@ def addUser(data_user: UserSchema):
             result =  {"error":True, "code":exc.orig.args[0], "message":"Error at create user: " + exc.orig.args[1]}
                 
             return JSONResponse(status_code=_status, content=result)
+
+@user.post("/login",response_model=UserSchema, tags=["user"])
+def addUser(data_user: LoginSchema):
+    with engine.connect() as conn:
+        try:
+            result = conn.execute(users.select().where(users.c.email == data_user.email)).first()
+            message= "User not found"
+
+            if result != None:
+                #Check password
+                password_encrypted = result[3].encode()
+                if bcrypt.checkpw(data_user.password.encode(), password_encrypted):
+                    return result
+                else:
+                    message = "Password didn't match"
+                
+            _status = status.HTTP_500_INTERNAL_SERVER_ERROR
+            result =  {"error":True, "message" :message}
+                
+            return JSONResponse(status_code=_status, content=result)
+        except IntegrityError as exc:
+            _status = status.HTTP_500_INTERNAL_SERVER_ERROR
+            result =  {"error":True, "code":exc.orig.args[0], "message":"Error during login function: " + exc.orig.args[1]}
         
 @user.put("/{idUser}", status_code=200, tags=['user'])
 def update_user(data_user: UserSchema, idUser: str):
