@@ -1,11 +1,13 @@
-from fastapi import APIRouter, status, Request
+from fastapi import APIRouter, status, Request, Response
 from fastapi.responses import JSONResponse
 from starlette.status import HTTP_201_CREATED, HTTP_204_NO_CONTENT, HTTP_401_UNAUTHORIZED
-from schema.user_schema import UserSchema, LoginSchema
+from schema.user_schema import UserSchema
 from config.db import engine
 from typing import List
 import bcrypt
+from datetime import datetime
 from model.persistence import users
+import jwt
 from sqlalchemy.exc import IntegrityError
 
 user = APIRouter(prefix="/user")
@@ -55,8 +57,8 @@ def addUser(data_user: UserSchema):
                 
             return JSONResponse(status_code=_status, content=result)
 
-@user.post("/login",response_model=UserSchema, tags=["user"])
-def addUser(data_user: LoginSchema):
+@user.post("/login", tags=["user"], status_code=200)
+def addUser(data_user: UserSchema, response: Response):
     with engine.connect() as conn:
         try:
             result = conn.execute(users.select().where(users.c.email == data_user.email)).first()
@@ -66,6 +68,11 @@ def addUser(data_user: LoginSchema):
                 #Check password
                 password_encrypted = result[3].encode()
                 if bcrypt.checkpw(data_user.password.encode(), password_encrypted):
+                    user_json = {"id":result[0]}
+                    encoded_jwt = jwt.encode(user_json, "$126K4600a", algorithm="HS256")
+                    #guardar el token en galletas XD
+                    response.set_cookie(key="token", value=encoded_jwt)
+                    result = {"error":False, "message" :"Loged"}
                     return result
                 else:
                     message = "Password didn't match"
