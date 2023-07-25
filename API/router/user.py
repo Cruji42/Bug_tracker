@@ -5,6 +5,8 @@ from schema.user_schema import UserSchema
 from config.db import engine
 from typing import List
 import bcrypt
+import requests
+import json
 from datetime import datetime
 from model.persistence import users
 import jwt
@@ -14,8 +16,15 @@ user = APIRouter(prefix="/user")
 
 @user.get("/", response_model=List[UserSchema], tags=["user"])
 def getUser():
-    with engine.connect() as conn:
-        result = conn.execute(users.select()).fetchall()
+    session = requests.session()
+    encoded_jwt = session.cookies.get("token")
+    validator = jwt.decode(encoded_jwt, algorithms=['HS256',], key='$126K4600a')
+    if validator:
+        with engine.connect() as conn:
+            result = conn.execute(users.select()).fetchall()
+            return result
+    else:
+        result = {"error":True, "message":"Not authentication"}
         return result
 
 @user.get("/{idUser}", response_model=None, tags=["user"])
@@ -43,7 +52,7 @@ def addUser(data_user: UserSchema):
             data_user.password = hashed
 
             new_user = data_user.dict()
-            
+            print(data_user)
             #METADATA
             conn.execute(users.insert().values(new_user))
             #return Response(status_code=HTTP_201_CREATED)
@@ -70,7 +79,6 @@ def addUser(data_user: UserSchema, response: Response):
                 if bcrypt.checkpw(data_user.password.encode(), password_encrypted):
                     user_json = {"id":result[0]}
                     encoded_jwt = jwt.encode(user_json, "$126K4600a", algorithm="HS256")
-                    #guardar el token en galletas XD
                     response.set_cookie(key="token", value=encoded_jwt)
                     result = {"error":False, "message" :"Loged"}
                     return result

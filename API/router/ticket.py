@@ -6,14 +6,27 @@ from config.db import engine
 from typing import List
 from model.persistence import tickets
 from sqlalchemy.exc import IntegrityError
+import requests
+import jwt
 
 ticket = APIRouter(prefix="/ticket")
 
 @ticket.get("/", response_model=List[TicketSchema], tags=["ticket"])
 def getTicket():
-    with engine.connect() as conn:
-        result = conn.execute(tickets.select()).fetchall()
+    import pdb
+    pdb.set_trace()
+    session = requests.session()
+    encoded_jwt = session.cookies.get("token")
+    validator = jwt.decode(encoded_jwt, algorithms=['HS256',], key='$126K4600a')
+    if validator:
+        with engine.connect() as conn:
+            result = conn.execute(tickets.select()).fetchall()
+            return result
+    else:
+        result = {"error":True, "message":"Not authentication"}
         return result
+
+    
 
 @ticket.get("/{idTicket}", response_model=None, tags=["ticket"])
 def getSingleTicket(idTicket: str):
