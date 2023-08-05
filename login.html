@@ -9,6 +9,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <link rel="stylesheet" href="./css/login.css">
     <script src="./utils/ajax-jquery.min.js"></script>
+    <script src="./js/login.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   </head>
 <body class="bg-dark">
 
@@ -67,41 +69,3 @@
     </div>
     
 </body>
-
-<script>
-
-
-     function send_data(type, name, email, pass) {
-
-        if(type=== 'login'){
-            $.ajax({
-                type: "POST",
-                url: "http://127.0.0.1:8000/user/login",
-                contentType: 'application/json; charset=utf-8',
-                data: JSON.stringify({ email: email.value, password: pass.value}),
-                success: function (result, status) {
-                    console.log(result);
-                },
-                error: function (error, status) {
-                console.log(error);
-                 }
-            })
-        } else if( type === 'signup'){
-            console.log(email);
-            $.ajax({
-                type: "POST",
-                url: "http://127.0.0.1:8000/user/",
-                contentType: 'application/json; charset=utf-8',
-                data: JSON.stringify({ username: name.value, email: email.value, password: pass.value}),
-                success: function (result, status) {
-                    console.log(result);
-                },
-                error: function (error, status) {
-                console.log(error);
-                 }
-            });
-        } 
-    }
-    
-
-</script>

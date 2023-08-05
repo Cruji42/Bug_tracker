@@ -1,4 +1,5 @@
-from fastapi import APIRouter, status, Request, Response
+from fastapi import APIRouter, status, Request, Response, Header
+from typing import Optional 
 from fastapi.responses import JSONResponse
 from starlette.status import HTTP_201_CREATED, HTTP_204_NO_CONTENT, HTTP_401_UNAUTHORIZED
 from schema.user_schema import UserSchema
@@ -15,30 +16,36 @@ from sqlalchemy.exc import IntegrityError
 user = APIRouter(prefix="/user")
 
 @user.get("/", response_model=List[UserSchema], tags=["user"])
-def getUser():
-    session = requests.session()
-    encoded_jwt = session.cookies.get("token")
-    validator = jwt.decode(encoded_jwt, algorithms=['HS256',], key='$126K4600a')
-    if validator:
+def getUser(Authorization: Optional[str] = Header(None)):
+    if not validate(Authorization):
+        result = {"error":True, "message":"Not authentication"}
+        _status = status.HTTP_401_UNAUTHORIZED
+        return JSONResponse(status_code=_status, content=result)
+    else:
         with engine.connect() as conn:
             result = conn.execute(users.select()).fetchall()
             return result
-    else:
-        result = {"error":True, "message":"Not authentication"}
-        return result
+
 
 @user.get("/{idUser}", response_model=None, tags=["user"])
-def getSingleUser(idUser: str):
-    with engine.connect() as conn:
-            result = conn.execute(users.select().where(users.c.id == idUser)).first()
+def getSingleUser(idUser: str, Authorization: Optional[str] = Header(None)):
+    if not validate(Authorization):
+        result = {"error":True, "message":"Not authentication"}
+        _status = status.HTTP_401_UNAUTHORIZED
+        return JSONResponse(status_code=_status, content=result)
+    else:
+        with engine.connect() as conn:
+                result = conn.execute(users.select().where(users.c.id == idUser)).first()
             
-            print("Result from DB", result)
-            if result != None:
-                return result
-            _status = status.HTTP_500_INTERNAL_SERVER_ERROR
-            result =  {"error":True, "message":"User not found"}
+                print("Result from DB", result)
+                if result != None:
+                    return result
+                _status = status.HTTP_500_INTERNAL_SERVER_ERROR
+                result =  {"error":True, "message":"User not found"}
                 
-            return JSONResponse(status_code=_status, content=result)
+                return JSONResponse(status_code=_status, content=result)
+    
+
 
         
 @user.post("/",response_model=UserSchema, tags=["user"])
@@ -65,6 +72,17 @@ def addUser(data_user: UserSchema):
             result =  {"error":True, "code":exc.orig.args[0], "message":"Error at create user: " + exc.orig.args[1]}
                 
             return JSONResponse(status_code=_status, content=result)
+        
+@user.post("/auth", tags=["user"], status_code=200)
+def validate(Authorization: Optional[str] = Header(None)):  
+    if not validate(Authorization):
+        result = {"error":True, "message":"Not authentication"}
+        _status = status.HTTP_401_UNAUTHORIZED
+        return JSONResponse(status_code=_status, content=result)
+    else:
+        _status = status.HTTP_200_OK
+        result = {"error":False, "message":"Authorized"}
+        return JSONResponse(status_code=_status, content=result)
 
 @user.post("/login", tags=["user"], status_code=200)
 def addUser(data_user: UserSchema, response: Response):
@@ -80,7 +98,7 @@ def addUser(data_user: UserSchema, response: Response):
                     user_json = {"id":result[0]}
                     encoded_jwt = jwt.encode(user_json, "$126K4600a", algorithm="HS256")
                     response.set_cookie(key="token", value=encoded_jwt)
-                    result = {"error":False, "message" :"Loged"}
+                    result = {"error":False, "token" : encoded_jwt}
                     return result
                 else:
                     message = "Password didn't match"
@@ -94,40 +112,63 @@ def addUser(data_user: UserSchema, response: Response):
             result =  {"error":True, "code":exc.orig.args[0], "message":"Error during login function: " + exc.orig.args[1]}
         
 @user.put("/{idUser}", status_code=200, tags=['user'])
-def update_user(data_user: UserSchema, idUser: str):
-    with engine.connect() as conn:
-        try:
-            conn.execute(users.update().values(username=data_user.username, email=data_user.email,password=data_user.password).where(users.c.id == idUser))
+def update_user(data_user: UserSchema, idUser: str, Authorization: Optional[str] = Header(None)):
+    if not validate(Authorization):
+        result = {"error":True, "message":"Not authentication"}
+        _status = status.HTTP_401_UNAUTHORIZED
+        return JSONResponse(status_code=_status, content=result)
+    else:
+        with engine.connect() as conn:
+            try:
+                conn.execute(users.update().values(username=data_user.username, email=data_user.email,password=data_user.password).where(users.c.id == idUser))
             
-            result = conn.execute(users.select().where(users.c.id == idUser)).first() 
+                result = conn.execute(users.select().where(users.c.id == idUser)).first() 
     
-            if result != None:
-                data = {"error":False, "message":"User updated."}
-                _status = status.HTTP_200_OK
-            else:
-                data = {"error":True, "message":"Error in update user. User not found with this ID: " + idUser}
-                _status = status.HTTP_400_BAD_REQUEST
+                if result != None:
+                    data = {"error":False, "message":"User updated."}
+                    _status = status.HTTP_200_OK
+                else:
+                    data = {"error":True, "message":"Error in update user. User not found with this ID: " + idUser}
+                    _status = status.HTTP_400_BAD_REQUEST
                 
             
-            return JSONResponse(status_code=_status, content=data)
-        except IntegrityError as exc:
+                return JSONResponse(status_code=_status, content=data)
+            except IntegrityError as exc:
 
-            result = {"error":True,  "codigo":exc.orig.args[0], "message":"Something went wrong with the DB. "  +  exc.orig.args[1]}
-            _status = status.HTTP_400_BAD_REQUEST
-            return JSONResponse(status_code=_status, content=result)
+                    result = {"error":True,  "codigo":exc.orig.args[0], "message":"Something went wrong with the DB. "  +  exc.orig.args[1]}
+                    _status = status.HTTP_400_BAD_REQUEST
+                    return JSONResponse(status_code=_status, content=result)
         
 @user.delete("/{idUser}", status_code=200, tags=["user"])
-def deleteUser(idUser: str):
-    with engine.connect() as conn:
-        try:
-            conn.execute(users.delete().where(users.c.id == idUser))
+def deleteUser(idUser: str,Authorization: Optional[str] = Header(None)):
+    if not validate(Authorization):
+        result = {"error":True, "message":"Not authentication"}
+        _status = status.HTTP_401_UNAUTHORIZED
+        return JSONResponse(status_code=_status, content=result)
+    else:
+        with engine.connect() as conn:
+            try:
+                conn.execute(users.delete().where(users.c.id == idUser))
             
-            result = {"error":False, "message":"User deleted"}
-            _status = status.HTTP_200_OK
-            return JSONResponse(status_code=_status, content=result)
+                result = {"error":False, "message":"User deleted"}
+                _status = status.HTTP_200_OK
+                return JSONResponse(status_code=_status, content=result)
             
-        except IntegrityError as exc:
+            except IntegrityError as exc:
 
-            result = {"error":True, "codigo":exc.orig.args[0], "message":"Something went wrong with the DB. " +  exc.orig.args[1]}
+                result = {"error":True, "codigo":exc.orig.args[0], "message":"Something went wrong with the DB. " +  exc.orig.args[1]}
             _status = status.HTTP_400_BAD_REQUEST
             return JSONResponse(status_code=_status, content=result)
+
+def validate(token: Optional[str]):
+    
+    if token == None:
+        encoded_jwt = "not set"
+        return False
+    else:
+        encoded_jwt = token
+        try:
+            jwt.decode(encoded_jwt, algorithms=['HS256',], key='$126K4600a')
+            return True
+        except:
+            return False
